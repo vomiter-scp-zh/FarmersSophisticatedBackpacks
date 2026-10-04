@@ -95,6 +95,7 @@ apply from: 'gradle/optional-dep.gradle'
 
 dependencies {
     minecraft 'net.minecraftforge:forge:1.20.1-47.4.10'
+    annotationProcessor "org.spongepowered:mixin:${mixin_version}:processor"
     implementation fg.deobf('curse.maven:sophisticated-core-618298:8705513')
     implementation fg.deobf('curse.maven:sophisticated-backpacks-422301:8687830')
     implementation fg.deobf('curse.maven:farmers-delight-398521:8765179')
