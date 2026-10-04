@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.vomiter.farmersbp.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "refmap": "farmersbp.mixins.refmap.json",
+  "mixins": [
+    "SlotAccess"
+  ],
+  "client": [
+    "StorageScreenBaseMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

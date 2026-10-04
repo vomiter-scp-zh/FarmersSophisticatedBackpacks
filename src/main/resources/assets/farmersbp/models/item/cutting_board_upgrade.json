@@ -1,0 +1,6 @@
+{
+  "parent":"minecraft:item/generated",
+  "textures": {
+    "layer0":"farmersbp:item/cutting_board_upgrade"
+  }
+}

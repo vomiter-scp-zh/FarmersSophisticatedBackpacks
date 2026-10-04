@@ -1,0 +1,8 @@
+{
+  "item.farmersbp.cutting_board_upgrade":"Cutting Board Upgrade",
+  "item.farmersbp.cooking_pot_upgrade":"Cooking Pot Upgrade",
+  "gui.farmersbp.cutting_board":"Cutting",
+  "gui.farmersbp.cooking_pot":"Cooking",
+  "gui.farmersbp.cut":"Cut",
+  "gui.farmersbp.cut.tooltip":"Cut one item with the tool; send results to backpack storage"
+}

@@ -1,0 +1,102 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'org.spongepowered.mixin' version '0.7.+'
+    id 'com.vomiter.forge-base' version "0.1.0"
+    id 'com.vomiter.dev-runtime' version "0.1.0"
+    id 'com.vomiter.langmerge' version "0.1.0"
+}
+
+vomiterMod {
+    modId = mod_id
+    // 需要的話可以關掉某些功能
+    // enableMixinExtras = false
+    // enableDevJar = false
+}
+
+langMerge { modId = mod_id }
+
+version = mod_version
+group = mod_group_id
+base { archivesName = mod_id }
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+minecraft {
+    mappings channel: mapping_channel, version: mapping_version
+    copyIdeResources = true
+}
+
+apply from: 'gradle/publishing-local.gradle'
+apply from: 'gradle/mixin.gradle'
+
+minecraft {
+    runs {
+        configureEach {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'info'
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.debug.export', 'true'
+        }
+
+        client {
+            property 'forge.enabledGameTestNamespaces', mod_id
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                    source sourceSets.test
+                }
+            }
+        }
+
+        server {
+            property 'forge.enabledGameTestNamespaces', mod_id
+            args '--nogui'
+            mods { "${mod_id}" { source sourceSets.main } }
+        }
+
+        gameTestServer {
+            property 'forge.enabledGameTestNamespaces', mod_id
+            mods { "${mod_id}" { source sourceSets.main } }
+        }
+
+        data {
+            workingDirectory project.file('run')
+            property 'mixin.env.disable',        'true'
+            property 'mixin.env.ignoreRequired', 'true'
+            property 'mixin.env.disableRefMap',  'true'
+
+            args '--mod', mod_id,
+                    '--all',
+                    '--output', file('src/generated/resources/'),
+                    '--existing', file('src/main/resources/')
+
+            mods { "${mod_id}" { source sourceSets.main } }
+        }
+    }
+}
+tasks.withType(JavaExec).configureEach {
+    standardInput = System.in
+}
+
+/*
+repositories {
+    maven {
+        url "https://cursemaven.com"
+        content { includeGroup "curse.maven" }
+    }
+    maven { url "https://maven.blamejared.com" }
+}
+ */
+
+apply from: 'gradle/optional-dep.gradle'
+
+dependencies {
+    minecraft 'net.minecraftforge:forge:1.20.1-47.4.10'
+    implementation fg.deobf('curse.maven:sophisticated-core-618298:8705513')
+    implementation fg.deobf('curse.maven:sophisticated-backpacks-422301:8687830')
+    implementation fg.deobf('curse.maven:farmers-delight-398521:8765179')
+}
+

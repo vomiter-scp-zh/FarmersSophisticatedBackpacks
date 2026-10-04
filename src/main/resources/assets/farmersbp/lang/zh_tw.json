@@ -1,0 +1,8 @@
+{
+  "item.farmersbp.cutting_board_upgrade": "砧板升級",
+  "item.farmersbp.cooking_pot_upgrade": "廚鍋升級",
+  "gui.farmersbp.cutting_board": "砧板",
+  "gui.farmersbp.cooking_pot": "廚鍋",
+  "gui.farmersbp.cut": "切割",
+  "gui.farmersbp.cut.tooltip": "使用工具切割一份材料，產物放入背包"
+}
