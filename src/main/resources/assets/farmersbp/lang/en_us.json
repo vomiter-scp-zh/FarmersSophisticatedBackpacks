@@ -1,14 +1,16 @@
 {
   "item.farmersbp.cutting_board_upgrade": "Cutting Board Upgrade",
+  "item.farmersbp.cutting_board_upgrade.tooltip": "Cutting board in an upgrade tab",
   "item.farmersbp.cooking_pot_upgrade": "Cooking Pot Upgrade",
+  "item.farmersbp.cooking_pot_upgrade.tooltip": "Cooking pot in an upgrade tab",
   "gui.farmersbp.cutting_board": "Cutting",
   "gui.farmersbp.cooking_pot": "Cooking",
   "gui.farmersbp.cut": "Cut",
   "gui.farmersbp.cut.tooltip": "Cut one item with the tool; send results to backpack storage",
-  "item.farmersbp.automatic_cooking_pot_upgrade": "Automatic Cooking Pot Upgrade",
+  "item.farmersbp.automatic_cooking_pot_upgrade": "Auto Cooking Pot Upgrade",
+  "item.farmersbp.automatic_cooking_pot_upgrade.tooltip": "Cooking pot in an upgrade tab \nAutomatically pulls/pushes items",
   "gui.farmersbp.automatic_cooking_pot": "Auto Cooking",
   "gui.farmersbp.selected_meal": "Meal",
-  "gui.farmersbp.selected_meal.tooltip": "Selected meal (ghost slot). Click with a meal to select; click with an empty cursor to clear.",
-  "gui.farmersbp.pot_filter.tooltip": "Ingredient/container whitelist (ghost slots). Empty row allows all; populated filters match item and NBT.",
+  "gui.farmersbp.selected_meal.tooltip": "Selected meal. Click with a meal to select; click with an empty cursor to clear.",
   "error.farmersbp.cooking_pot_exists": "Only one cooking pot upgrade can be installed."
 }

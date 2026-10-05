@@ -1,14 +1,16 @@
 {
   "item.farmersbp.cutting_board_upgrade": "砧板升級",
-  "item.farmersbp.cooking_pot_upgrade": "廚鍋升級",
+  "item.farmersbp.cutting_board_upgrade.tooltip": "在升級標籤裡的砧板",
+  "item.farmersbp.cooking_pot_upgrade": "烹飪鍋升級",
+  "item.farmersbp.cooking_pot_upgrade.tooltip": "在升級標籤裡的烹飪鍋",
   "gui.farmersbp.cutting_board": "砧板",
-  "gui.farmersbp.cooking_pot": "廚鍋",
+  "gui.farmersbp.cooking_pot": "烹飪鍋",
   "gui.farmersbp.cut": "切割",
   "gui.farmersbp.cut.tooltip": "使用工具切割一份材料，產物放入背包",
-  "item.farmersbp.automatic_cooking_pot_upgrade": "自動料理鍋升級",
+  "item.farmersbp.automatic_cooking_pot_upgrade": "自動烹飪鍋升級",
+  "item.farmersbp.automatic_cooking_pot_upgrade.tooltip": "在升級標籤裡的烹飪鍋 \n會自動輸入/輸出物品",
   "gui.farmersbp.automatic_cooking_pot": "自動烹煮",
-  "gui.farmersbp.selected_meal": "餐點",
-  "gui.farmersbp.selected_meal.tooltip": "選定餐點（範本格）。拿著餐點點擊以選定；空手點擊以清除。",
-  "gui.farmersbp.pot_filter.tooltip": "材料／盛裝容器白名單（範本格）。整排留空時全部允許；設定後比對物品及 NBT。",
-  "error.farmersbp.cooking_pot_exists": "只能安裝一個料理鍋升級。"
+  "gui.farmersbp.selected_meal": "指定菜餚",
+  "gui.farmersbp.selected_meal.tooltip": "指定菜餚（範本格）。拿著菜餚物品點擊以選定；空手點擊以清除。",
+  "error.farmersbp.cooking_pot_exists": "只能安裝一個烹飪鍋升級。"
 }
