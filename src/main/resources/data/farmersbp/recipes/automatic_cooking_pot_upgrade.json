@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "RPR",
+    "HBH"
+  ],
+  "key": {
+    "R": {
+      "item": "minecraft:redstone"
+    },
+    "H": {
+      "item": "minecraft:hopper"
+    },
+    "P": {
+      "item": "farmersdelight:cooking_pot"
+    },
+    "B": {
+      "item": "sophisticatedbackpacks:upgrade_base"
+    }
+  },
+  "result": {
+    "item": "farmersbp:automatic_cooking_pot_upgrade"
+  }
+}

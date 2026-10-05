@@ -1,1 +1,8 @@
-{"replace":false,"values":["farmersbp:cutting_board_upgrade","farmersbp:cooking_pot_upgrade"]}
+{
+  "replace": false,
+  "values": [
+    "farmersbp:cutting_board_upgrade",
+    "farmersbp:cooking_pot_upgrade",
+    "farmersbp:automatic_cooking_pot_upgrade"
+  ]
+}

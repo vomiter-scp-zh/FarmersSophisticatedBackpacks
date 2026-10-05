@@ -6,11 +6,15 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.level.Level;
+import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.ItemHandlerHelper;
 import net.minecraftforge.items.ItemStackHandler;
 import net.minecraftforge.items.wrapper.RecipeWrapper;
+import net.p3pp3rf1y.sophisticatedbackpacks.Config;
 import net.p3pp3rf1y.sophisticatedcore.api.IStorageWrapper;
+import net.p3pp3rf1y.sophisticatedcore.upgrades.FilterLogic;
 import net.p3pp3rf1y.sophisticatedcore.upgrades.ITickableUpgrade;
 import net.p3pp3rf1y.sophisticatedcore.upgrades.UpgradeWrapperBase;
 import net.p3pp3rf1y.sophisticatedcore.util.NBTHelper;
@@ -20,6 +24,8 @@ import vectorwing.farmersdelight.common.crafting.CookingPotRecipe;
 import vectorwing.farmersdelight.common.registry.ModRecipeTypes;
 
 import javax.annotation.Nullable;
+import java.util.Comparator;
+import java.util.List;
 import java.util.function.Consumer;
 
 public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrapper, CookingPotUpgradeItem>
@@ -28,7 +34,14 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
     static final int CONTAINER = 7;
     static final int OUTPUT = 8;
     static final int INVENTORY_SIZE = 9;
+    static final int SELECTED_MEAL = 0;
+    static final int FILTER_START = 1;
+    static final int FILTER_COUNT = 7;
     private final ItemStackHandler inventory;
+    private final ItemStackHandler settings;
+    private FilterLogic inputFilterLogic;
+    private static final String INPUT_FILTER_TAG = "AutoPotInputFilter";
+
     private ResourceLocation activeRecipe;
     private int cookTime;
     private int totalCookTime;
@@ -37,6 +50,19 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
 
     public CookingPotWrapper(IStorageWrapper storage, ItemStack upgrade, Consumer<ItemStack> saveHandler) {
         super(storage, upgrade, saveHandler);
+        settings = new ItemStackHandler(1 + FILTER_COUNT) {
+            @Override
+            public int getSlotLimit(int slot) {
+                return 1;
+            }
+
+            @Override
+            protected void onContentsChanged(int slot) {
+                upgrade.addTagElement("AutoPotSettings", serializeNBT());
+                save();
+            }
+        };
+        NBTHelper.getCompound(upgrade, "AutoPotSettings").ifPresent(settings::deserializeNBT);
         inventory = new ItemStackHandler(INVENTORY_SIZE) {
             @Override
             public boolean isItemValid(int slot, @NotNull ItemStack stack) {
@@ -67,6 +93,150 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
 
     public ItemStackHandler getInventory() {
         return inventory;
+    }
+
+    public boolean isAutomatic() {
+        return ((CookingPotUpgradeItem) upgrade.getItem()).isAutomatic();
+    }
+
+    public ItemStackHandler getSettings() {
+        return settings;
+    }
+
+    @Nullable
+    private CookingPotRecipe getPotRecipeForMeal(ItemStack mealStack, Level level) {
+        if (mealStack.isEmpty()) {
+            return null;
+        }
+        // Keep selection deterministic when several recipes produce the same meal.
+        return level.getRecipeManager().getAllRecipesFor(ModRecipeTypes.COOKING.get()).stream()
+                .filter(recipe -> ItemStack.isSameItemSameTags(recipe.getResultItem(level.registryAccess()), mealStack)).min(Comparator.comparing(recipe -> recipe.getId().toString())).orElse(null);
+    }
+
+    public Ingredient getAssignedIngredient(int slot, Level level) {
+        CookingPotRecipe recipe = getPotRecipeForMeal(settings.getStackInSlot(SELECTED_MEAL), level);
+        if (slot == CONTAINER) {
+            ItemStack container = getServingContainer(recipe, level);
+            return container.isEmpty() ? Ingredient.EMPTY : Ingredient.of(container);
+        }
+        if (recipe == null) {
+            return Ingredient.EMPTY;
+        }
+        List<Ingredient> ingredients = recipe.getIngredients();
+        return slot >= 0 && slot < ingredients.size() ? ingredients.get(slot) : Ingredient.EMPTY;
+    }
+
+    private ItemStack getServingContainer(@Nullable CookingPotRecipe selectedRecipe, Level level) {
+        ItemStack pending = inventory.getStackInSlot(MEAL_DISPLAY_SLOT);
+        if (pending.isEmpty()) {
+            return selectedRecipe == null ? ItemStack.EMPTY : selectedRecipe.getOutputContainer();
+        }
+        // Finish serving the previous meal even after the selection is changed or cleared.
+        CookingPotRecipe pendingRecipe = getPotRecipeForMeal(pending, level);
+        return pendingRecipe == null ? pending.getCraftingRemainingItem() : pendingRecipe.getOutputContainer();
+    }
+
+    public FilterLogic getInputFilterLogic() {
+        if (inputFilterLogic == null) {
+            int filterSlots = Config.SERVER.autoSmeltingUpgrade.inputFilterSlots.get();
+            // A smaller configured grid must not discard existing ghost filters.
+            CompoundTag saved = upgrade.getTagElement(INPUT_FILTER_TAG);
+            if (saved != null && saved.contains("filters", 10)) {
+                filterSlots = Math.max(filterSlots, saved.getCompound("filters").getInt("Size"));
+            }
+            inputFilterLogic = new FilterLogic(upgrade, upgradeSaveHandler, filterSlots, INPUT_FILTER_TAG);
+            inputFilterLogic.setAllowByDefault(true);
+            inputFilterLogic.setEmptyAllowListMatchesEverything();
+        }
+        return inputFilterLogic;
+    }
+
+    private boolean matchesFilter(ItemStack stack) {
+        return getInputFilterLogic().matchesFilter(stack);
+    }
+
+    private boolean returnInvalidInput(int slot, Ingredient ingredient) {
+        ItemStack stack = inventory.getStackInSlot(slot);
+        if (stack.isEmpty() || ingredient.test(stack)) {
+            return true;
+        }
+        //put non-fitting stack back to backpack storage
+        ItemStack remainder = ItemHandlerHelper.insertItem(storageWrapper.getInventoryHandler(), stack.copy(), false);
+        if (remainder.getCount() != stack.getCount()) {
+            inventory.extractItem(slot, stack.getCount(), false);
+            inventory.insertItem(slot, remainder, false);
+        }
+        return remainder.isEmpty();
+    }
+
+    private void refillInput(int slot, Ingredient ingredient) {
+        if (ingredient.isEmpty()) {
+            return;
+        }
+        IItemHandler storage = storageWrapper.getInventoryHandler();
+        for (int i = 0; i < storage.getSlots(); i++) {
+            ItemStack candidate = storage.extractItem(i, 1, true);
+            if (candidate.isEmpty() || !ingredient.test(candidate) || !matchesFilter(candidate)
+                    || !inventory.insertItem(slot, candidate, true).isEmpty()) {
+                continue;
+            }
+            ItemStack extracted = storage.extractItem(i, 1, false);
+            if (!extracted.isEmpty()) {
+                inventory.insertItem(slot, extracted, false);
+                return;
+            }
+        }
+    }
+
+    private boolean prepareAutomaticInputs(@Nullable CookingPotRecipe recipe, ItemStack container) {
+        Ingredient[] assigned = new Ingredient[CONTAINER + 1];
+        for (int slot = 0; slot < MEAL_DISPLAY_SLOT; slot++) {
+            assigned[slot] = recipe != null && slot < recipe.getIngredients().size()
+                    ? recipe.getIngredients().get(slot) : Ingredient.EMPTY;
+        }
+        assigned[CONTAINER] = container.isEmpty() ? Ingredient.EMPTY : Ingredient.of(container);
+        boolean cleared = true;
+        for (int slot = 0; slot <= CONTAINER; slot++) {
+            if (slot == MEAL_DISPLAY_SLOT) {
+                continue;
+            }
+            if (!returnInvalidInput(slot, assigned[slot])) {
+                cleared = false;
+            }
+        }
+        if (!cleared) {
+            return false;
+        }
+        for (int slot = 0; slot <= CONTAINER; slot++) {
+            if (slot != MEAL_DISPLAY_SLOT) {
+                refillInput(slot, assigned[slot]);
+            }
+        }
+
+        // A broad ingredient may have taken a stack also needed by a later slot.
+        // Include the serving-container slot, but always leave one item in the donor.
+        for (int slot = 0; slot <= CONTAINER; slot++) {
+            if (slot == MEAL_DISPLAY_SLOT || assigned[slot].isEmpty() || !inventory.getStackInSlot(slot).isEmpty()) {
+                continue;
+            }
+            for (int donor = 0; donor <= CONTAINER; donor++) {
+                if (donor == MEAL_DISPLAY_SLOT || donor == slot) {
+                    continue;
+                }
+                ItemStack candidate = inventory.getStackInSlot(donor);
+                if (candidate.getCount() > 1 && assigned[slot].test(candidate) && matchesFilter(candidate)) {
+                    inventory.insertItem(slot, inventory.extractItem(donor, 1, false), false);
+                    break;
+                }
+            }
+        }
+        for (int slot = 0; slot < CONTAINER; slot++) {
+            if (slot != MEAL_DISPLAY_SLOT && !assigned[slot].isEmpty()
+                    && !assigned[slot].test(inventory.getStackInSlot(slot))) {
+                return false;
+            }
+        }
+        return recipe != null;
     }
 
     public int getCookTime() {
@@ -150,20 +320,29 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
         if (level.isClientSide || lastTick == level.getGameTime()) {
             return;
         }
+        lastTick = level.getGameTime();
+        CookingPotRecipe selectedRecipe = isAutomatic()
+                ? getPotRecipeForMeal(settings.getStackInSlot(SELECTED_MEAL), level) : null;
+        ItemStack servingContainer = isAutomatic() ? getServingContainer(selectedRecipe, level) : ItemStack.EMPTY;
+        CompoundTag beforeServing = isAutomatic() ? inventory.serializeNBT() : null;
+        boolean ready = !isAutomatic() || prepareAutomaticInputs(selectedRecipe, servingContainer);
         ItemStack mealStack = inventory.getStackInSlot(MEAL_DISPLAY_SLOT);
         if (!mealStack.isEmpty()) {
-            if (!doesMealHaveContainer(mealStack)) {
+            if (isAutomatic() ? servingContainer.isEmpty() : !doesMealHaveContainer(mealStack)) {
                 moveMealToOutput();
-            } else if (!inventory.getStackInSlot(CONTAINER).isEmpty() && ItemStack.isSameItem(inventory.getStackInSlot(CONTAINER), mealStack.getCraftingRemainingItem())) {
+            } else if (!inventory.getStackInSlot(CONTAINER).isEmpty() && ItemStack.isSameItem(
+                    inventory.getStackInSlot(CONTAINER), isAutomatic() ? servingContainer : mealStack.getCraftingRemainingItem())) {
                 useStoredContainersOnMeal();
             }
         }
 
-        lastTick = level.getGameTime();
+        if (isAutomatic() && !inventory.serializeNBT().equals(beforeServing)) {
+            saveState(); // Serving mutates existing stacks as well as setting slots.
+        }
         RecipeWrapper inputs = new RecipeWrapper(inventory);
-        CookingPotRecipe recipe = level.getRecipeManager()
+        CookingPotRecipe recipe = isAutomatic() ? selectedRecipe : level.getRecipeManager()
                 .getRecipeFor(ModRecipeTypes.COOKING.get(), inputs, level).orElse(null);
-        if (recipe == null || !canCook(recipe, level)) {
+        if (!ready || recipe == null || !recipe.matches(inputs, level) || !canCook(recipe, level)) {
             if (cookTime != 0 || activeRecipe != null) {
                 cookTime = 0;
                 totalCookTime = 0;
