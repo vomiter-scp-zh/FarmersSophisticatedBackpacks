@@ -41,6 +41,8 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
     private final ItemStackHandler settings;
     private FilterLogic inputFilterLogic;
     private static final String INPUT_FILTER_TAG = "AutoPotInputFilter";
+    private static final String OUTPUT_FLUSH_TAG = "AutoPotOutputFlush";
+    private ItemStack selectedMeal = ItemStack.EMPTY;
 
     private ResourceLocation activeRecipe;
     private int cookTime;
@@ -58,11 +60,19 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
 
             @Override
             protected void onContentsChanged(int slot) {
+                if (slot == SELECTED_MEAL) {
+                    ItemStack meal = getStackInSlot(SELECTED_MEAL);
+                    if (isAutomatic() && !ItemStack.matches(selectedMeal, meal)) {
+                        upgrade.getOrCreateTag().putBoolean(OUTPUT_FLUSH_TAG, true);
+                    }
+                    selectedMeal = meal.copy();
+                }
                 upgrade.addTagElement("AutoPotSettings", serializeNBT());
                 save();
             }
         };
         NBTHelper.getCompound(upgrade, "AutoPotSettings").ifPresent(settings::deserializeNBT);
+        selectedMeal = settings.getStackInSlot(SELECTED_MEAL).copy();
         inventory = new ItemStackHandler(INVENTORY_SIZE) {
             @Override
             public boolean isItemValid(int slot, @NotNull ItemStack stack) {
@@ -321,6 +331,17 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
             return;
         }
         lastTick = level.getGameTime();
+        if (isAutomatic() && upgrade.getOrCreateTag().getBoolean(OUTPUT_FLUSH_TAG)) {
+            upgrade.removeTagKey(OUTPUT_FLUSH_TAG);
+            ItemStack output = inventory.extractItem(OUTPUT, Integer.MAX_VALUE, false);
+            if (!output.isEmpty()) {
+                ItemStack remainder = ItemHandlerHelper.insertItem(storageWrapper.getInventoryHandler(), output, false);
+                if (!remainder.isEmpty()) {
+                    level.addFreshEntity(new ItemEntity(level, pos.getX() + .5, pos.getY() + .5, pos.getZ() + .5, remainder));
+                }
+            }
+            saveState();
+        }
         CookingPotRecipe selectedRecipe = isAutomatic()
                 ? getPotRecipeForMeal(settings.getStackInSlot(SELECTED_MEAL), level) : null;
         ItemStack servingContainer = isAutomatic() ? getServingContainer(selectedRecipe, level) : ItemStack.EMPTY;
