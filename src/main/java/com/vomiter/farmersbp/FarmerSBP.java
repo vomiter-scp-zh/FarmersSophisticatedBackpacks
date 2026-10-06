@@ -49,6 +49,8 @@ public final class FarmerSBP {
 
     public static final RegistryObject<CuttingBoardUpgradeItem> CUTTING_BOARD =
             ITEMS.register("cutting_board_upgrade", () -> new CuttingBoardUpgradeItem(LIMITS));
+    public static final RegistryObject<CuttingBoardUpgradeItem> AUTOMATIC_CUTTING_BOARD =
+            ITEMS.register("automatic_cutting_board_upgrade", () -> new CuttingBoardUpgradeItem(LIMITS, true));
     public static final RegistryObject<CookingPotUpgradeItem> COOKING_POT =
             ITEMS.register("cooking_pot_upgrade", () -> new CookingPotUpgradeItem(LIMITS));
 
@@ -74,6 +76,7 @@ public final class FarmerSBP {
     private void commonSetup(FMLCommonSetupEvent event) {
         event.enqueueWork(() -> {
             UpgradeContainerRegistry.register(CUTTING_BOARD.getId(), CUTTING_TYPE);
+            UpgradeContainerRegistry.register(AUTOMATIC_CUTTING_BOARD.getId(), CUTTING_TYPE);
             UpgradeContainerRegistry.register(COOKING_POT.getId(), POT_TYPE);
             UpgradeContainerRegistry.register(AUTOMATIC_COOKING_POT.getId(), POT_TYPE);
         });
@@ -82,6 +85,7 @@ public final class FarmerSBP {
     private void addCreativeTabContents(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == net.p3pp3rf1y.sophisticatedbackpacks.init.ModItems.CREATIVE_TAB.getKey()) {
             event.accept(CUTTING_BOARD);
+            event.accept(AUTOMATIC_CUTTING_BOARD);
             event.accept(COOKING_POT);
             event.accept(AUTOMATIC_COOKING_POT);
         }

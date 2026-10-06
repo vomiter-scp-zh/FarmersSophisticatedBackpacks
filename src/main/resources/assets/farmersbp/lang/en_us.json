@@ -12,5 +12,11 @@
   "gui.farmersbp.automatic_cooking_pot": "Auto Cooking",
   "gui.farmersbp.selected_meal": "Meal",
   "gui.farmersbp.selected_meal.tooltip": "Selected meal. Click with a meal to select; click with an empty cursor to clear.",
-  "error.farmersbp.cooking_pot_exists": "Only one cooking pot upgrade can be installed."
+  "error.farmersbp.cooking_pot_exists": "Only one cooking pot upgrade can be installed.",
+  "item.farmersbp.automatic_cutting_board_upgrade": "Auto Cutting Board Upgrade",
+  "item.farmersbp.automatic_cutting_board_upgrade.tooltip": "Cutting board in an upgrade tab \nAutomatically pulls/pushes items",
+  "gui.farmersbp.automatic_cutting_board": "Auto Cutting",
+  "gui.farmersbp.automated": "Automated",
+  "gui.farmersbp.automated.tooltip": "Automatically cuts one item per tick; pauses until backpack storage changes if results cannot fit",
+  "error.farmersbp.cutting_board_exists": "Only one cutting board upgrade can be installed."
 }

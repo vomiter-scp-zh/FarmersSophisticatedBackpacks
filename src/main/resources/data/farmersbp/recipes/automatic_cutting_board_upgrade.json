@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "RCR",
+    "HBH"
+  ],
+  "key": {
+    "R": {
+      "item": "minecraft:redstone"
+    },
+    "H": {
+      "item": "minecraft:hopper"
+    },
+    "C": {
+      "item": "farmersdelight:cutting_board"
+    },
+    "B": {
+      "item": "sophisticatedbackpacks:upgrade_base"
+    }
+  },
+  "result": {
+    "item": "farmersbp:automatic_cutting_board_upgrade"
+  }
+}

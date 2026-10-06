@@ -9,13 +9,18 @@ import net.minecraft.world.inventory.InventoryMenu;
 import net.p3pp3rf1y.sophisticatedcore.common.gui.SlotSuppliedHandler;
 import net.p3pp3rf1y.sophisticatedcore.common.gui.UpgradeContainerBase;
 import net.p3pp3rf1y.sophisticatedcore.common.gui.UpgradeContainerType;
+import net.p3pp3rf1y.sophisticatedcore.upgrades.FilterLogic;
+import net.p3pp3rf1y.sophisticatedcore.upgrades.FilterLogicContainer;
 
 public final class CuttingBoardContainer extends UpgradeContainerBase<CuttingBoardWrapper, CuttingBoardContainer> {
+    private final FilterLogicContainer<FilterLogic> inputFilterLogicContainer;
     public static final ResourceLocation KNIFE_SLOT_BACKGROUND = FarmerSBP.modLoc("item/knife_slot");
 
     public CuttingBoardContainer(Player player, int id, CuttingBoardWrapper wrapper, UpgradeContainerType<CuttingBoardWrapper, CuttingBoardContainer> type) {
         super(player, id, wrapper, type);
-        slots.add(new SlotSuppliedHandler(supplyFromWrapper(CuttingBoardWrapper::getInventory), 0, -100, -100));
+        if (!wrapper.isAutomatic()) {
+            slots.add(new SlotSuppliedHandler(supplyFromWrapper(CuttingBoardWrapper::getInventory), 0, -100, -100));
+        }
         slots.add(
                 new SlotSuppliedHandler(
                         supplyFromWrapper(CuttingBoardWrapper::getInventory),
@@ -25,11 +30,28 @@ public final class CuttingBoardContainer extends UpgradeContainerBase<CuttingBoa
                                 KNIFE_SLOT_BACKGROUND
                         )
         );
+        inputFilterLogicContainer = wrapper.isAutomatic()
+                ? new FilterLogicContainer<>(supplyFromWrapper(CuttingBoardWrapper::getInputFilterLogic), this, slots::add)
+                : null;
+    }
+
+    public boolean isAutomatic() {
+        return upgradeWrapper.isAutomatic();
+    }
+
+    public FilterLogicContainer<FilterLogic> getInputFilterLogicContainer() {
+        if (inputFilterLogicContainer == null) {
+            throw new IllegalStateException("The manual cutting board has no input filter");
+        }
+        return inputFilterLogicContainer;
     }
 
     @Override
     public void handleMessage(CompoundTag data) {
-        if (data.getBoolean("cut") && player instanceof ServerPlayer serverPlayer) {
+        if (inputFilterLogicContainer != null) {
+            inputFilterLogicContainer.handleMessage(data);
+        }
+        if (!isAutomatic() && data.getBoolean("cut") && player instanceof ServerPlayer serverPlayer) {
             upgradeWrapper.cut(serverPlayer);
         }
     }
