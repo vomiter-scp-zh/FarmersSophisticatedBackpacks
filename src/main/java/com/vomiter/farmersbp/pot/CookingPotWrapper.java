@@ -268,6 +268,72 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
         return !this.inventory.getStackInSlot(CONTAINER).isEmpty() || meal.hasCraftingRemainingItem();
     }
 
+    private void serveAutomaticMeal(ItemStack servingContainer) {
+        ItemStack pending = inventory.getStackInSlot(MEAL_DISPLAY_SLOT);
+        if (pending.isEmpty()) {
+            return;
+        }
+        ItemStack containers = inventory.getStackInSlot(CONTAINER);
+        int count = pending.getCount();
+        if (!servingContainer.isEmpty()) {
+            if (containers.isEmpty() || !ItemStack.isSameItem(containers, servingContainer)) {
+                return;
+            }
+            count = Math.min(count, containers.getCount());
+        }
+        ItemStack remainder = pending.copy();
+        remainder.setCount(count);
+        IItemHandler storage = storageWrapper.getInventoryHandler();
+        boolean hasMeal = false;
+        for (int slot = 0; slot < storage.getSlots(); slot++) {
+            if (ItemStack.isSameItemSameTags(storage.getStackInSlot(slot), pending)) {
+                hasMeal = true;
+                break;
+            }
+        }
+        // Seed storage only when it has no matching meal. Later meals wait in output.
+        if (!hasMeal) {
+            remainder = ItemHandlerHelper.insertItem(storage, remainder, false);
+        }
+        ItemStack output = inventory.getStackInSlot(OUTPUT);
+        if (!remainder.isEmpty() && (output.isEmpty() || ItemStack.isSameItemSameTags(output, remainder))) {
+            int outputCount = Math.min(remainder.getCount(),
+                    Math.min(inventory.getSlotLimit(OUTPUT), remainder.getMaxStackSize()) - output.getCount());
+            if (outputCount > 0) {
+                ItemStack combined = output.isEmpty() ? remainder.copy() : output.copy();
+                combined.setCount(output.getCount() + outputCount);
+                remainder.shrink(outputCount);
+                inventory.setStackInSlot(OUTPUT, combined);
+            }
+        }
+        int served = count - remainder.getCount();
+        if (served > 0) {
+            pending.shrink(served);
+            if (!servingContainer.isEmpty()) {
+                containers.shrink(served);
+            }
+            saveState();
+        }
+    }
+
+    private void mergeAutomaticOutputIntoStorage() {
+        ItemStack output = inventory.getStackInSlot(OUTPUT);
+        if (output.isEmpty()) {
+            return;
+        }
+        ItemStack remainder = output.copy();
+        IItemHandler storage = storageWrapper.getInventoryHandler();
+        for (int slot = 0; slot < storage.getSlots() && !remainder.isEmpty(); slot++) {
+            ItemStack stored = storage.getStackInSlot(slot);
+            if (!stored.isEmpty() && ItemStack.isSameItemSameTags(stored, remainder)) {
+                remainder = storageWrapper.getInventoryHandler().insertItemOnlyToSlot(slot, remainder, false);
+            }
+        }
+        if (remainder.getCount() != output.getCount()) {
+            inventory.setStackInSlot(OUTPUT, remainder);
+        }
+    }
+
     private void moveMealToOutput() {
         ItemStack mealStack = this.inventory.getStackInSlot(MEAL_DISPLAY_SLOT);
         ItemStack outputStack = this.inventory.getStackInSlot(OUTPUT);
@@ -331,6 +397,13 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
             return;
         }
         lastTick = level.getGameTime();
+        tickCooking(level, pos);
+        if (isAutomatic()) {
+            mergeAutomaticOutputIntoStorage();
+        }
+    }
+
+    private void tickCooking(Level level, BlockPos pos) {
         if (isAutomatic() && upgrade.getOrCreateTag().getBoolean(OUTPUT_FLUSH_TAG)) {
             upgrade.removeTagKey(OUTPUT_FLUSH_TAG);
             ItemStack output = inventory.extractItem(OUTPUT, Integer.MAX_VALUE, false);
@@ -348,11 +421,13 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
         CompoundTag beforeServing = isAutomatic() ? inventory.serializeNBT() : null;
         boolean ready = !isAutomatic() || prepareAutomaticInputs(selectedRecipe, servingContainer);
         ItemStack mealStack = inventory.getStackInSlot(MEAL_DISPLAY_SLOT);
-        if (!mealStack.isEmpty()) {
-            if (isAutomatic() ? servingContainer.isEmpty() : !doesMealHaveContainer(mealStack)) {
+        if (isAutomatic()) {
+            serveAutomaticMeal(servingContainer);
+        } else if (!mealStack.isEmpty()) {
+            if (!doesMealHaveContainer(mealStack)) {
                 moveMealToOutput();
             } else if (!inventory.getStackInSlot(CONTAINER).isEmpty() && ItemStack.isSameItem(
-                    inventory.getStackInSlot(CONTAINER), isAutomatic() ? servingContainer : mealStack.getCraftingRemainingItem())) {
+                    inventory.getStackInSlot(CONTAINER), mealStack.getCraftingRemainingItem())) {
                 useStoredContainersOnMeal();
             }
         }
@@ -413,6 +488,9 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
 
         cookTime = 0;
         activeRecipe = null;
+        if (isAutomatic()) {
+            serveAutomaticMeal(getServingContainer(selectedRecipe, level));
+        }
         saveState();
     }
 
