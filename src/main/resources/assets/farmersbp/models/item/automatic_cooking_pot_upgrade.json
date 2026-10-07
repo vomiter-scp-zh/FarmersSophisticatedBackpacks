@@ -1,3 +1,6 @@
 {
-  "parent": "farmersbp:item/cooking_pot_upgrade"
+  "parent": "farmersbp:item/cooking_pot_upgrade",
+  "textures": {
+    "layer0":"farmersbp:item/automatic_cooking_pot_upgrade"
+  }
 }

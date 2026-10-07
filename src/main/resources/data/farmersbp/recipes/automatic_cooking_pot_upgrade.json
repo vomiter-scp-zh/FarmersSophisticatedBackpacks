@@ -1,8 +1,9 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "RPR",
-    "HBH"
+    "DHD",
+    "RUH",
+    "GHG"
   ],
   "key": {
     "R": {
@@ -11,11 +12,14 @@
     "H": {
       "item": "minecraft:hopper"
     },
-    "P": {
-      "item": "farmersdelight:cooking_pot"
+    "U": {
+      "item": "farmersbp:cooking_pot_upgrade"
     },
-    "B": {
-      "item": "sophisticatedbackpacks:upgrade_base"
+    "G" : {
+      "item": "minecraft:gold_ingot"
+    },
+    "D": {
+      "item": "minecraft:diamond"
     }
   },
   "result": {

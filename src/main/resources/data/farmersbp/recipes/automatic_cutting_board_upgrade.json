@@ -1,8 +1,9 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "RCR",
-    "HBH"
+    "DHD",
+    "RUH",
+    "GHG"
   ],
   "key": {
     "R": {
@@ -11,11 +12,14 @@
     "H": {
       "item": "minecraft:hopper"
     },
-    "C": {
-      "item": "farmersdelight:cutting_board"
+    "U": {
+      "item": "farmersbp:cutting_board_upgrade"
     },
-    "B": {
-      "item": "sophisticatedbackpacks:upgrade_base"
+    "G" : {
+      "item": "minecraft:gold_ingot"
+    },
+    "D": {
+      "item": "minecraft:diamond"
     }
   },
   "result": {

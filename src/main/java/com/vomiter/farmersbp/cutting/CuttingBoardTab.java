@@ -110,9 +110,16 @@ public final class CuttingBoardTab extends UpgradeSettingsTab<CuttingBoardContai
             @Override
             protected void renderWidget(@NotNull GuiGraphics graphics, int mouseX,
                                         int mouseY, float partialTicks) {
+                boolean isAutomatic = getContainer().isAutomatic();
+                boolean isEnabled = getContainer().getUpgradeWrapper().isEnabled();
+                Component buttonComponent =
+                        isAutomatic?
+                                isEnabled? Component.translatable("gui.farmersbp.automated"): Component.translatable("gui.farmersbp.disabled")
+                                : Component.translatable("gui.farmersbp.cut")
+                        ;
                 graphics.drawCenteredString(
                         Minecraft.getInstance().font,
-                        Component.translatable(getContainer().isAutomatic() ? "gui.farmersbp.automated" : "gui.farmersbp.cut"),
+                        buttonComponent,
                         x + getWidth() / 2,
                         y + 5,
                         getContainer().isAutomatic() ? 0xA0A0A0 : 0xFFFFFF

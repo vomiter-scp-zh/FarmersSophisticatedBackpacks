@@ -17,6 +17,7 @@
   "item.farmersbp.automatic_cutting_board_upgrade.tooltip": "在升級標籤裡的砧板 \n會自動輸入/輸出物品",
   "gui.farmersbp.automatic_cutting_board": "自動切割",
   "gui.farmersbp.automated": "自動化",
+  "gui.farmersbp.disabled": "停止中",
   "gui.farmersbp.automated.tooltip": "每刻自動切割一份材料",
   "error.farmersbp.cutting_board_exists": "只能安裝一個砧板升級。"
 }

@@ -17,6 +17,7 @@
   "item.farmersbp.automatic_cutting_board_upgrade.tooltip": "Cutting board in an upgrade tab \nAutomatically pulls/pushes items",
   "gui.farmersbp.automatic_cutting_board": "Auto Cutting",
   "gui.farmersbp.automated": "Automated",
+  "gui.farmersbp.disabled": "Disabled",
   "gui.farmersbp.automated.tooltip": "Automatically cuts one item per tick",
   "error.farmersbp.cutting_board_exists": "Only one cutting board upgrade can be installed."
 }

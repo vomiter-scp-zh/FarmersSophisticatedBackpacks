@@ -1,3 +1,6 @@
 {
-  "parent": "farmersbp:item/cutting_board_upgrade"
+  "parent": "farmersbp:item/cutting_board_upgrade",
+  "textures": {
+    "layer0":"farmersbp:item/automatic_cutting_board_upgrade"
+  }
 }
