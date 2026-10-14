@@ -85,6 +85,14 @@ public final class CookingPotContainer extends UpgradeContainerBase<CookingPotWr
         }
     }
 
+    @Override
+    public void handlePacket(@NotNull CompoundTag data) {
+        if (inputFilterLogicContainer != null) {
+            inputFilterLogicContainer.handlePacket(data);
+        }
+
+    }
+
     private @NotNull RestrictedInputSlot getInputSlot(Player player, int slotIndex) {
         return new RestrictedInputSlot(supplyFromWrapper(CookingPotWrapper::getInventory), slotIndex, -100, -100) {
             @Override
@@ -105,13 +113,6 @@ public final class CookingPotContainer extends UpgradeContainerBase<CookingPotWr
 
     public boolean isAutomatic() {
         return upgradeWrapper.isAutomatic();
-    }
-
-    @Override
-    public void handleMessage(@NotNull CompoundTag data) {
-        if (inputFilterLogicContainer != null) {
-            inputFilterLogicContainer.handleMessage(data);
-        }
     }
 
     public double getProgress() {

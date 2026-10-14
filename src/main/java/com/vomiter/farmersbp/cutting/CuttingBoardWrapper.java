@@ -1,6 +1,8 @@
 package com.vomiter.farmersbp.cutting;
 
 import com.vomiter.farmersbp.network.ModNetwork;
+import com.vomiter.farmersbp.FarmerSBP;
+import net.minecraft.core.NonNullList;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -10,28 +12,29 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.Enchantments;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.items.ItemHandlerHelper;
-import net.minecraftforge.items.ItemStackHandler;
-import net.minecraftforge.items.wrapper.RecipeWrapper;
-import net.minecraftforge.network.PacketDistributor;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.neoforged.neoforge.items.ItemHandlerHelper;
+import net.neoforged.neoforge.items.ItemStackHandler;
+import net.neoforged.neoforge.items.wrapper.RecipeWrapper;
+import net.neoforged.neoforge.network.PacketDistributor;
 import net.p3pp3rf1y.sophisticatedcore.api.IStorageWrapper;
 import net.p3pp3rf1y.sophisticatedbackpacks.Config;
 import net.p3pp3rf1y.sophisticatedcore.inventory.InventoryHandler;
 import net.p3pp3rf1y.sophisticatedcore.upgrades.FilterLogic;
 import net.p3pp3rf1y.sophisticatedcore.upgrades.ITickableUpgrade;
 import net.p3pp3rf1y.sophisticatedcore.upgrades.UpgradeWrapperBase;
-import net.p3pp3rf1y.sophisticatedcore.util.NBTHelper;
+import net.p3pp3rf1y.sophisticatedcore.init.ModCoreDataComponents;
 import vectorwing.farmersdelight.common.crafting.CuttingBoardRecipe;
+import vectorwing.farmersdelight.common.crafting.CuttingBoardRecipeInput;
 import vectorwing.farmersdelight.common.registry.ModRecipeTypes;
 import vectorwing.farmersdelight.common.registry.ModSounds;
 import vectorwing.farmersdelight.common.utility.TextUtils;
+import vectorwing.farmersdelight.common.utility.ItemUtils;
 import org.jetbrains.annotations.NotNull;
 
-import javax.annotation.Nullable;
+import org.jetbrains.annotations.Nullable;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -40,11 +43,9 @@ import java.util.function.Consumer;
 public final class CuttingBoardWrapper extends UpgradeWrapperBase<CuttingBoardWrapper, CuttingBoardUpgradeItem>
         implements ITickableUpgrade {
     private final ItemStackHandler inventory;
-    private static final String INPUT_FILTER_TAG = "AutoCuttingInputFilter";
-    private static final String BLOCKED_INVENTORY_TAG = "AutoCuttingBlockedInventory";
-    private static final String LAST_TICK_TAG = "AutoCuttingLastTick";
     private FilterLogic inputFilterLogic;
     private long lastTick;
+    private int blockedInventorySignature;
 
     public enum CuttingResult{
         EMPTY,
@@ -74,13 +75,26 @@ public final class CuttingBoardWrapper extends UpgradeWrapperBase<CuttingBoardWr
             @Override
             protected void onContentsChanged(int slot) {
                 CuttingBoardWrapper.setCuttingResult(CuttingResult.EMPTY);
-                upgrade.addTagElement("CuttingInventory", serializeNBT());
+                saveInventory();
                 save();
             }
         };
-        NBTHelper.getCompound(upgrade, "CuttingInventory").ifPresent(inventory::deserializeNBT);
-        CompoundTag data = upgrade.getTag();
-        lastTick = data != null && data.contains(LAST_TICK_TAG) ? data.getLong(LAST_TICK_TAG) : Long.MIN_VALUE;
+        NonNullList<ItemStack> saved = NonNullList.withSize(2, ItemStack.EMPTY);
+        upgrade.getOrDefault(FarmerSBP.CUTTING_INVENTORY, net.minecraft.world.item.component.ItemContainerContents.EMPTY)
+                .copyInto(saved);
+        for (int slot = 0; slot < saved.size(); slot++) {
+            inventory.setStackInSlot(slot, saved.get(slot));
+        }
+        lastTick = Long.MIN_VALUE;
+    }
+
+    private void saveInventory() {
+        NonNullList<ItemStack> contents = NonNullList.withSize(inventory.getSlots(), ItemStack.EMPTY);
+        for (int slot = 0; slot < inventory.getSlots(); slot++) {
+            contents.set(slot, inventory.getStackInSlot(slot).copy());
+        }
+        upgrade.set(FarmerSBP.CUTTING_INVENTORY,
+                net.minecraft.world.item.component.ItemContainerContents.fromItems(contents));
     }
 
     public ItemStackHandler getInventory() {
@@ -99,11 +113,8 @@ public final class CuttingBoardWrapper extends UpgradeWrapperBase<CuttingBoardWr
     public FilterLogic getInputFilterLogic() {
         if (inputFilterLogic == null) {
             int filterSlots = Config.SERVER.autoSmeltingUpgrade.inputFilterSlots.get();
-            CompoundTag saved = upgrade.getTagElement(INPUT_FILTER_TAG);
-            if (saved != null && saved.contains("filters", 10)) {
-                filterSlots = Math.max(filterSlots, saved.getCompound("filters").getInt("Size"));
-            }
-            inputFilterLogic = new FilterLogic(upgrade, upgradeSaveHandler, filterSlots, INPUT_FILTER_TAG);
+            inputFilterLogic = new FilterLogic(upgrade, upgradeSaveHandler, filterSlots,
+                    ModCoreDataComponents.FILTER_ATTRIBUTES);
             inputFilterLogic.setAllowByDefault(true);
             inputFilterLogic.setEmptyAllowListMatchesEverything();
         }
@@ -112,20 +123,16 @@ public final class CuttingBoardWrapper extends UpgradeWrapperBase<CuttingBoardWr
 
     @Override
     public void tick(@Nullable Entity entity, Level level, @NotNull BlockPos pos) {
-        if (!isAutomatic() || !isEnabled() || level.isClientSide || lastTick == level.getGameTime()) {
+        if (!isAutomatic() || !isEnabled() || level.isClientSide() || lastTick == level.getGameTime()) {
             return;
         }
         lastTick = level.getGameTime();
-        upgrade.getOrCreateTag().putLong(LAST_TICK_TAG, lastTick);
         InventoryHandler storage = storageWrapper.getInventoryHandler();
-        CompoundTag blockedInventory = upgrade.getTagElement(BLOCKED_INVENTORY_TAG);
-        if (blockedInventory != null) {
-            if (blockedInventory.equals(storage.serializeNBT())) {
-                return;
-            }
-            upgrade.removeTagKey(BLOCKED_INVENTORY_TAG);
-            save();
+        int currentSignature = inventorySignature(storage);
+        if (blockedInventorySignature != 0 && blockedInventorySignature == currentSignature) {
+            return;
         }
+        blockedInventorySignature = 0;
         ItemStack tool = inventory.getStackInSlot(1);
         if (tool.isEmpty()) {
             return;
@@ -140,26 +147,41 @@ public final class CuttingBoardWrapper extends UpgradeWrapperBase<CuttingBoardWr
                 continue;
             }
             recipeInventory.setStackInSlot(0, ingredient.copyWithCount(1));
-            CuttingBoardRecipe recipe = level.getRecipeManager().getRecipesFor(ModRecipeTypes.CUTTING.get(), inputs, level)
-                    .stream().filter(candidate -> candidate.getTool().test(tool)).findFirst().orElse(null);
+            CuttingBoardRecipeInput recipeInput = new CuttingBoardRecipeInput(
+                    recipeInventory.getStackInSlot(0), tool);
+            CuttingBoardRecipe recipe = level.getRecipeManager().getRecipesFor(
+                            ModRecipeTypes.CUTTING.get(), recipeInput, level)
+                    .stream().map(holder -> holder.value())
+                    .filter(candidate -> candidate.getTool().test(tool)).findFirst().orElse(null);
             if (recipe == null) {
                 continue;
             }
-            int fortune = EnchantmentHelper.getTagEnchantmentLevel(Enchantments.BLOCK_FORTUNE, tool);
+            int fortune = ItemUtils.getValidatedEnchantmentLevel(
+                    Enchantments.FORTUNE, level.registryAccess(), tool);
             List<ItemStack> results = recipe.rollResults(level.random, fortune, inputs);
             if (!storeAutomaticResults(storage, slot, results)) {
-                upgrade.addTagElement(BLOCKED_INVENTORY_TAG, storage.serializeNBT());
-                save();
+                blockedInventorySignature = currentSignature;
                 return;
             }
             ItemStack damaged = tool.copy();
-            if (damaged.hurt(1, level.random, entity instanceof ServerPlayer player ? player : null)) {
-                damaged.shrink(1);
+            if (level instanceof ServerLevel serverLevel) {
+                damaged.hurtAndBreak(1, serverLevel,
+                        entity instanceof ServerPlayer player ? player : null, item -> {});
             }
             inventory.setStackInSlot(1, damaged);
             playCuttingSound(level, pos, recipe);
             return; // At most one ingredient per server tick.
         }
+    }
+
+    private int inventorySignature(InventoryHandler storage) {
+        int hash = 1;
+        for (int slot = 0; slot < storage.getSlots(); slot++) {
+            ItemStack stack = storage.getStackInSlot(slot);
+            hash = 31 * hash + ItemStack.hashItemAndComponents(stack);
+            hash = 31 * hash + stack.getCount();
+        }
+        return hash;
     }
 
     private boolean storeAutomaticResults(InventoryHandler storage, int ingredientSlot, List<ItemStack> results) {
@@ -213,24 +235,24 @@ public final class CuttingBoardWrapper extends UpgradeWrapperBase<CuttingBoardWr
             return;
         }
         RecipeWrapper inputs = new RecipeWrapper(inventory);
-        List<CuttingBoardRecipe> recipes = player.level().getRecipeManager().getRecipesFor(ModRecipeTypes.CUTTING.get(), inputs, player.level());
+        CuttingBoardRecipeInput recipeInput = new CuttingBoardRecipeInput(input, tool);
+        List<CuttingBoardRecipe> recipes = player.level().getRecipeManager()
+                .getRecipesFor(ModRecipeTypes.CUTTING.get(), recipeInput, player.level())
+                .stream().map(holder -> holder.value()).toList();
         if (recipes.isEmpty()){
-            ModNetwork.CHANNEL.send(
-                    PacketDistributor.PLAYER.with(() -> player),
-                    new ModNetwork.FBPCuttingResponse(CuttingResult.INVALID_ITEM.ordinal())
-            );
+            PacketDistributor.sendToPlayer(player,
+                    new ModNetwork.FBPCuttingResponse(CuttingResult.INVALID_ITEM.ordinal()));
             return;
         }
         var recipe = recipes.stream().filter((cuttingRecipe) -> cuttingRecipe.getTool().test(tool)).findFirst().orElse(null);
         if (recipe == null) {
-            ModNetwork.CHANNEL.send(
-                    PacketDistributor.PLAYER.with(() -> player),
-                    new ModNetwork.FBPCuttingResponse(CuttingResult.INVALID_TOOL.ordinal())
-            );
+            PacketDistributor.sendToPlayer(player,
+                    new ModNetwork.FBPCuttingResponse(CuttingResult.INVALID_TOOL.ordinal()));
             return;
         }
 
-        int fortune = EnchantmentHelper.getTagEnchantmentLevel(Enchantments.BLOCK_FORTUNE, tool);
+        int fortune = ItemUtils.getValidatedEnchantmentLevel(
+                Enchantments.FORTUNE, player.level().registryAccess(), tool);
         List<ItemStack> results = recipe.rollResults(player.level().random, fortune, inputs);
         inventory.extractItem(0, 1, false);
         for (ItemStack result : results) {
@@ -242,29 +264,18 @@ public final class CuttingBoardWrapper extends UpgradeWrapperBase<CuttingBoardWr
 
         if (!player.getAbilities().instabuild){
             ItemStack damaged = tool.copy();
-            if (damaged.hurt(1, player.level().random, player)) {
-                damaged.shrink(1);
-            }
+            damaged.hurtAndBreak(1, player.serverLevel(), player, item -> {});
             inventory.setStackInSlot(1, damaged);
         }
 
         playCuttingSound(player.level(), player.blockPosition(), recipe);
-        ModNetwork.CHANNEL.send(
-                PacketDistributor.PLAYER.with(() -> player),
-                new ModNetwork.FBPCuttingResponse(CuttingResult.EMPTY.ordinal())
-        );
+        PacketDistributor.sendToPlayer(player,
+                new ModNetwork.FBPCuttingResponse(CuttingResult.EMPTY.ordinal()));
     }
 
     private void playCuttingSound(Level level, BlockPos pos, CuttingBoardRecipe recipe) {
         SoundEvent sound = ModSounds.BLOCK_CUTTING_BOARD_KNIFE.get();
-        String soundId = recipe.getSoundEventID();
-        if (!soundId.isEmpty()) {
-            ResourceLocation key = ResourceLocation.tryParse(soundId);
-            SoundEvent custom = key == null ? null : ForgeRegistries.SOUND_EVENTS.getValue(key);
-            if (custom != null) {
-                sound = custom;
-            }
-        }
+        sound = recipe.getSoundEvent().orElse(sound);
         level.playSound(null, pos, sound, SoundSource.PLAYERS, 0.8F, 1.0F);
     }
 }

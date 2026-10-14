@@ -6,5 +6,5 @@
       "P":{"item":"farmersdelight:cooking_pot"},
       "B":{"item":"sophisticatedbackpacks:upgrade_base"}
     },
-  "result":{"item":"farmersbp:cooking_pot_upgrade"}
+  "result":{"id":"farmersbp:cooking_pot_upgrade"}
 }

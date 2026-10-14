@@ -1,6 +1,8 @@
 package com.vomiter.farmersbp.pot;
 
+import com.vomiter.farmersbp.FarmerSBP;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
@@ -8,22 +10,22 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.ItemHandlerHelper;
-import net.minecraftforge.items.ItemStackHandler;
-import net.minecraftforge.items.wrapper.RecipeWrapper;
+import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.items.ItemHandlerHelper;
+import net.neoforged.neoforge.items.ItemStackHandler;
+import net.neoforged.neoforge.items.wrapper.RecipeWrapper;
 import net.p3pp3rf1y.sophisticatedbackpacks.Config;
 import net.p3pp3rf1y.sophisticatedcore.api.IStorageWrapper;
 import net.p3pp3rf1y.sophisticatedcore.upgrades.FilterLogic;
 import net.p3pp3rf1y.sophisticatedcore.upgrades.ITickableUpgrade;
 import net.p3pp3rf1y.sophisticatedcore.upgrades.UpgradeWrapperBase;
-import net.p3pp3rf1y.sophisticatedcore.util.NBTHelper;
+import net.p3pp3rf1y.sophisticatedcore.init.ModCoreDataComponents;
 import org.jetbrains.annotations.NotNull;
 import vectorwing.farmersdelight.common.block.entity.CookingPotBlockEntity;
 import vectorwing.farmersdelight.common.crafting.CookingPotRecipe;
 import vectorwing.farmersdelight.common.registry.ModRecipeTypes;
 
-import javax.annotation.Nullable;
+import org.jetbrains.annotations.Nullable;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
@@ -40,8 +42,6 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
     private final ItemStackHandler inventory;
     private final ItemStackHandler settings;
     private FilterLogic inputFilterLogic;
-    private static final String INPUT_FILTER_TAG = "AutoPotInputFilter";
-    private static final String OUTPUT_FLUSH_TAG = "AutoPotOutputFlush";
     private ItemStack selectedMeal = ItemStack.EMPTY;
 
     private ResourceLocation activeRecipe;
@@ -52,6 +52,10 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
 
     public CookingPotWrapper(IStorageWrapper storage, ItemStack upgrade, Consumer<ItemStack> saveHandler) {
         super(storage, upgrade, saveHandler);
+        cookTime = upgrade.getOrDefault(FarmerSBP.POT_COOK_TIME, 0);
+        totalCookTime = upgrade.getOrDefault(FarmerSBP.POT_TOTAL_COOK_TIME, 0);
+        activeRecipe = upgrade.get(FarmerSBP.POT_RECIPE);
+        boolean outputFlush = upgrade.getOrDefault(FarmerSBP.POT_OUTPUT_FLUSH, false);
         settings = new ItemStackHandler(1 + FILTER_COUNT) {
             @Override
             public int getSlotLimit(int slot) {
@@ -63,15 +67,20 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
                 if (slot == SELECTED_MEAL) {
                     ItemStack meal = getStackInSlot(SELECTED_MEAL);
                     if (isAutomatic() && !ItemStack.matches(selectedMeal, meal)) {
-                        upgrade.getOrCreateTag().putBoolean(OUTPUT_FLUSH_TAG, true);
+                        upgrade.set(FarmerSBP.POT_OUTPUT_FLUSH, true);
                     }
                     selectedMeal = meal.copy();
                 }
-                upgrade.addTagElement("AutoPotSettings", serializeNBT());
+                saveContents(FarmerSBP.POT_SETTINGS, this);
                 save();
             }
         };
-        NBTHelper.getCompound(upgrade, "AutoPotSettings").ifPresent(settings::deserializeNBT);
+        loadContents(FarmerSBP.POT_SETTINGS, settings);
+        if (outputFlush) {
+            upgrade.set(FarmerSBP.POT_OUTPUT_FLUSH, true);
+        } else {
+            upgrade.remove(FarmerSBP.POT_OUTPUT_FLUSH);
+        }
         selectedMeal = settings.getStackInSlot(SELECTED_MEAL).copy();
         inventory = new ItemStackHandler(INVENTORY_SIZE) {
             @Override
@@ -84,13 +93,26 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
                 saveState();
             }
         };
-        NBTHelper.getCompound(upgrade, "PotInventory").ifPresent(inventory::deserializeNBT);
-        CompoundTag data = upgrade.getTagElement("PotState");
-        cookTime = data == null ? 0 : data.getInt("CookTime");
-        totalCookTime = data == null ? 0 : data.getInt("TotalCookTime");
-        if (data != null && data.contains("Recipe", 8)) {
-            activeRecipe = ResourceLocation.tryParse(data.getString("Recipe"));
+        loadContents(FarmerSBP.POT_INVENTORY, inventory);
+    }
+
+    private void loadContents(java.util.function.Supplier<net.minecraft.core.component.DataComponentType<net.minecraft.world.item.component.ItemContainerContents>> component,
+                              ItemStackHandler handler) {
+        NonNullList<ItemStack> contents = NonNullList.withSize(handler.getSlots(), ItemStack.EMPTY);
+        upgrade.getOrDefault(component, net.minecraft.world.item.component.ItemContainerContents.EMPTY)
+                .copyInto(contents);
+        for (int slot = 0; slot < contents.size(); slot++) {
+            handler.setStackInSlot(slot, contents.get(slot));
         }
+    }
+
+    private void saveContents(java.util.function.Supplier<net.minecraft.core.component.DataComponentType<net.minecraft.world.item.component.ItemContainerContents>> component,
+                              ItemStackHandler handler) {
+        NonNullList<ItemStack> contents = NonNullList.withSize(handler.getSlots(), ItemStack.EMPTY);
+        for (int slot = 0; slot < handler.getSlots(); slot++) {
+            contents.set(slot, handler.getStackInSlot(slot).copy());
+        }
+        upgrade.set(component, net.minecraft.world.item.component.ItemContainerContents.fromItems(contents));
     }
 
     public static boolean isShouldRenderOriginalTooltip() {
@@ -120,7 +142,10 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
         }
         // Keep selection deterministic when several recipes produce the same meal.
         return level.getRecipeManager().getAllRecipesFor(ModRecipeTypes.COOKING.get()).stream()
-                .filter(recipe -> ItemStack.isSameItemSameTags(recipe.getResultItem(level.registryAccess()), mealStack)).min(Comparator.comparing(recipe -> recipe.getId().toString())).orElse(null);
+                .filter(holder -> ItemStack.isSameItemSameComponents(
+                        holder.value().getResultItem(level.registryAccess()), mealStack))
+                .min(Comparator.comparing(holder -> holder.id().toString()))
+                .map(holder -> holder.value()).orElse(null);
     }
 
     public Ingredient getAssignedIngredient(int slot, Level level) {
@@ -150,11 +175,8 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
         if (inputFilterLogic == null) {
             int filterSlots = Config.SERVER.autoSmeltingUpgrade.inputFilterSlots.get();
             // A smaller configured grid must not discard existing ghost filters.
-            CompoundTag saved = upgrade.getTagElement(INPUT_FILTER_TAG);
-            if (saved != null && saved.contains("filters", 10)) {
-                filterSlots = Math.max(filterSlots, saved.getCompound("filters").getInt("Size"));
-            }
-            inputFilterLogic = new FilterLogic(upgrade, upgradeSaveHandler, filterSlots, INPUT_FILTER_TAG);
+            inputFilterLogic = new FilterLogic(upgrade, upgradeSaveHandler, filterSlots,
+                    ModCoreDataComponents.FILTER_ATTRIBUTES);
             inputFilterLogic.setAllowByDefault(true);
             inputFilterLogic.setEmptyAllowListMatchesEverything();
         }
@@ -250,13 +272,11 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
     }
 
     public int getCookTime() {
-        CompoundTag data = upgrade.getTagElement("PotState");
-        return data == null ? cookTime : data.getInt("CookTime");
+        return upgrade.getOrDefault(FarmerSBP.POT_COOK_TIME, cookTime);
     }
 
     public int getTotalCookTime() {
-        CompoundTag data = upgrade.getTagElement("PotState");
-        return data == null ? totalCookTime : data.getInt("TotalCookTime");
+        return upgrade.getOrDefault(FarmerSBP.POT_TOTAL_COOK_TIME, totalCookTime);
     }
 
     @Override
@@ -286,7 +306,7 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
         IItemHandler storage = storageWrapper.getInventoryHandler();
         boolean hasMeal = false;
         for (int slot = 0; slot < storage.getSlots(); slot++) {
-            if (ItemStack.isSameItemSameTags(storage.getStackInSlot(slot), pending)) {
+            if (ItemStack.isSameItemSameComponents(storage.getStackInSlot(slot), pending)) {
                 hasMeal = true;
                 break;
             }
@@ -296,7 +316,7 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
             remainder = ItemHandlerHelper.insertItem(storage, remainder, false);
         }
         ItemStack output = inventory.getStackInSlot(OUTPUT);
-        if (!remainder.isEmpty() && (output.isEmpty() || ItemStack.isSameItemSameTags(output, remainder))) {
+        if (!remainder.isEmpty() && (output.isEmpty() || ItemStack.isSameItemSameComponents(output, remainder))) {
             int outputCount = Math.min(remainder.getCount(),
                     Math.min(inventory.getSlotLimit(OUTPUT), remainder.getMaxStackSize()) - output.getCount());
             if (outputCount > 0) {
@@ -325,7 +345,7 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
         IItemHandler storage = storageWrapper.getInventoryHandler();
         for (int slot = 0; slot < storage.getSlots() && !remainder.isEmpty(); slot++) {
             ItemStack stored = storage.getStackInSlot(slot);
-            if (!stored.isEmpty() && ItemStack.isSameItemSameTags(stored, remainder)) {
+            if (!stored.isEmpty() && ItemStack.isSameItemSameComponents(stored, remainder)) {
                 remainder = storageWrapper.getInventoryHandler().insertItemOnlyToSlot(slot, remainder, false);
             }
         }
@@ -340,7 +360,7 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
         int mealCount = Math.min(mealStack.getCount(), mealStack.getMaxStackSize() - outputStack.getCount());
         if (outputStack.isEmpty()) {
             this.inventory.setStackInSlot(OUTPUT, mealStack.split(mealCount));
-        } else if (ItemStack.isSameItemSameTags(mealStack, outputStack)) {
+        } else if (ItemStack.isSameItemSameComponents(mealStack, outputStack)) {
             mealStack.shrink(mealCount);
             outputStack.grow(mealCount);
         }
@@ -364,7 +384,7 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
             if (outputStack.isEmpty()) {
                 containerInputStack.shrink(mealCount);
                 this.inventory.setStackInSlot(OUTPUT, mealStack.split(mealCount));
-            } else if (ItemStack.isSameItemSameTags(outputStack, mealStack)) {
+            } else if (ItemStack.isSameItemSameComponents(outputStack, mealStack)) {
                 mealStack.shrink(mealCount);
                 containerInputStack.shrink(mealCount);
                 outputStack.grow(mealCount);
@@ -380,7 +400,7 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
             ItemStack storedMealStack = this.inventory.getStackInSlot(MEAL_DISPLAY_SLOT);
             if (storedMealStack.isEmpty()) {
                 return true;
-            } else if (!ItemStack.isSameItemSameTags(storedMealStack, resultStack)) {
+            } else if (!ItemStack.isSameItemSameComponents(storedMealStack, resultStack)) {
                 return false;
             } else if (storedMealStack.getCount() + resultStack.getCount() <= this.inventory.getSlotLimit(MEAL_DISPLAY_SLOT)) {
                 return true;
@@ -393,7 +413,7 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
 
     @Override
     public void tick(@Nullable Entity entity, Level level, @NotNull BlockPos pos) {
-        if (level.isClientSide || lastTick == level.getGameTime()) {
+        if (level.isClientSide() || lastTick == level.getGameTime()) {
             return;
         }
         lastTick = level.getGameTime();
@@ -404,8 +424,8 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
     }
 
     private void tickCooking(Level level, BlockPos pos) {
-        if (isAutomatic() && upgrade.getOrCreateTag().getBoolean(OUTPUT_FLUSH_TAG)) {
-            upgrade.removeTagKey(OUTPUT_FLUSH_TAG);
+        if (isAutomatic() && upgrade.getOrDefault(FarmerSBP.POT_OUTPUT_FLUSH, false)) {
+            upgrade.remove(FarmerSBP.POT_OUTPUT_FLUSH);
             ItemStack output = inventory.extractItem(OUTPUT, Integer.MAX_VALUE, false);
             if (!output.isEmpty()) {
                 ItemStack remainder = ItemHandlerHelper.insertItem(storageWrapper.getInventoryHandler(), output, false);
@@ -418,7 +438,7 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
         CookingPotRecipe selectedRecipe = isAutomatic()
                 ? getPotRecipeForMeal(settings.getStackInSlot(SELECTED_MEAL), level) : null;
         ItemStack servingContainer = isAutomatic() ? getServingContainer(selectedRecipe, level) : ItemStack.EMPTY;
-        CompoundTag beforeServing = isAutomatic() ? inventory.serializeNBT() : null;
+        CompoundTag beforeServing = isAutomatic() ? inventory.serializeNBT(level.registryAccess()) : null;
         boolean ready = !isAutomatic() || prepareAutomaticInputs(selectedRecipe, servingContainer);
         ItemStack mealStack = inventory.getStackInSlot(MEAL_DISPLAY_SLOT);
         if (isAutomatic()) {
@@ -432,12 +452,13 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
             }
         }
 
-        if (isAutomatic() && !inventory.serializeNBT().equals(beforeServing)) {
+        if (isAutomatic() && !inventory.serializeNBT(level.registryAccess()).equals(beforeServing)) {
             saveState(); // Serving mutates existing stacks as well as setting slots.
         }
         RecipeWrapper inputs = new RecipeWrapper(inventory);
         CookingPotRecipe recipe = isAutomatic() ? selectedRecipe : level.getRecipeManager()
-                .getRecipeFor(ModRecipeTypes.COOKING.get(), inputs, level).orElse(null);
+                .getRecipeFor(ModRecipeTypes.COOKING.get(), inputs, level)
+                .map(holder -> holder.value()).orElse(null);
         if (!ready || recipe == null || !recipe.matches(inputs, level) || !canCook(recipe, level)) {
             if (cookTime != 0 || activeRecipe != null) {
                 cookTime = 0;
@@ -448,9 +469,12 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
             return;
         }
 
-        if (!recipe.getId().equals(activeRecipe)) {
+        ResourceLocation recipeId = level.getRecipeManager().getAllRecipesFor(ModRecipeTypes.COOKING.get())
+                .stream().filter(holder -> holder.value() == recipe)
+                .map(holder -> holder.id()).findFirst().orElse(null);
+        if (!java.util.Objects.equals(recipeId, activeRecipe)) {
             cookTime = 0;
-            activeRecipe = recipe.getId();
+            activeRecipe = recipeId;
         }
 
         totalCookTime = Math.max(1, recipe.getCookTime());
@@ -495,14 +519,14 @@ public final class CookingPotWrapper extends UpgradeWrapperBase<CookingPotWrappe
     }
 
     private void saveState() {
-        upgrade.addTagElement("PotInventory", inventory.serializeNBT());
-        CompoundTag data = new CompoundTag();
-        data.putInt("CookTime", cookTime);
-        data.putInt("TotalCookTime", totalCookTime);
+        saveContents(FarmerSBP.POT_INVENTORY, inventory);
+        upgrade.set(FarmerSBP.POT_COOK_TIME, cookTime);
+        upgrade.set(FarmerSBP.POT_TOTAL_COOK_TIME, totalCookTime);
         if (activeRecipe != null) {
-            data.putString("Recipe", activeRecipe.toString());
+            upgrade.set(FarmerSBP.POT_RECIPE, activeRecipe);
+        } else {
+            upgrade.remove(FarmerSBP.POT_RECIPE);
         }
-        upgrade.addTagElement("PotState", data);
         save();
     }
 }

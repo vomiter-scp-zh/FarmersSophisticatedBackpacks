@@ -6,5 +6,5 @@
     "P":{"item":"farmersdelight:cutting_board"},
     "B":{"item":"sophisticatedbackpacks:upgrade_base"}
   },
-  "result":{"item":"farmersbp:cutting_board_upgrade"}
+  "result":{"id":"farmersbp:cutting_board_upgrade"}
 }

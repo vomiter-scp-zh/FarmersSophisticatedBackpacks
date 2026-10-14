@@ -11,6 +11,7 @@ import net.p3pp3rf1y.sophisticatedcore.common.gui.UpgradeContainerBase;
 import net.p3pp3rf1y.sophisticatedcore.common.gui.UpgradeContainerType;
 import net.p3pp3rf1y.sophisticatedcore.upgrades.FilterLogic;
 import net.p3pp3rf1y.sophisticatedcore.upgrades.FilterLogicContainer;
+import org.jetbrains.annotations.NotNull;
 
 public final class CuttingBoardContainer extends UpgradeContainerBase<CuttingBoardWrapper, CuttingBoardContainer> {
     private final FilterLogicContainer<FilterLogic> inputFilterLogicContainer;
@@ -35,6 +36,17 @@ public final class CuttingBoardContainer extends UpgradeContainerBase<CuttingBoa
                 : null;
     }
 
+    @Override
+    public void handlePacket(@NotNull CompoundTag data) {
+        if (inputFilterLogicContainer != null) {
+            inputFilterLogicContainer.handlePacket(data);
+        }
+        if (!isAutomatic() && data.getBoolean("cut") && player instanceof ServerPlayer serverPlayer) {
+            upgradeWrapper.cut(serverPlayer);
+        }
+
+    }
+
     public boolean isAutomatic() {
         return upgradeWrapper.isAutomatic();
     }
@@ -44,16 +56,6 @@ public final class CuttingBoardContainer extends UpgradeContainerBase<CuttingBoa
             throw new IllegalStateException("The manual cutting board has no input filter");
         }
         return inputFilterLogicContainer;
-    }
-
-    @Override
-    public void handleMessage(CompoundTag data) {
-        if (inputFilterLogicContainer != null) {
-            inputFilterLogicContainer.handleMessage(data);
-        }
-        if (!isAutomatic() && data.getBoolean("cut") && player instanceof ServerPlayer serverPlayer) {
-            upgradeWrapper.cut(serverPlayer);
-        }
     }
 
     public void requestCut() {

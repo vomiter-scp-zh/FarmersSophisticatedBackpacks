@@ -1,6 +1,0 @@
-mixin {
-    add    sourceSets.main, "${mod_id}.mixins.refmap.json"
-    config "${mod_id}.mixins.json"
-    debug.verbose = true
-    debug.export  = true
-}
